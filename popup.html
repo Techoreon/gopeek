@@ -1,0 +1,235 @@
+
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        :root {
+            --bg-color: #f5f5f7;
+            --card-bg: #ffffff;
+            --text-main: #1d1d1f;
+            --text-muted: #86868b;
+            --accent: #007aff;
+            --accent-hover: #0070e0;
+            --border: rgba(0, 0, 0, 0.06);
+            --shadow: 0 4px 14px rgba(0, 0, 0, 0.04), 0 1px 4px rgba(0, 0, 0, 0.02);
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            width: 330px;
+            margin: 0;
+            padding: 20px 16px;
+            background: var(--bg-color);
+            color: var(--text-main);
+            max-height: 560px;
+            overflow-y: auto;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        body::-webkit-scrollbar { width: 6px; }
+        body::-webkit-scrollbar-track { background: transparent; }
+        body::-webkit-scrollbar-thumb { background: #d1d1d6; border-radius: 4px; }
+        body::-webkit-scrollbar-thumb:hover { background: #c7c7cc; }
+
+        .header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 24px;
+            padding: 0 4px;
+        }
+
+        .header-icon {
+            width: 28px;
+            height: 28px;
+            background: var(--accent);
+            border-radius: 8px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-right: 12px;
+            box-shadow: 0 4px 10px rgba(0, 122, 255, 0.3);
+        }
+
+        .header h2 {
+            margin: 0;
+            font-size: 22px;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+            color: var(--text-main);
+        }
+
+        .section-title {
+            font-size: 11px;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            font-weight: 700;
+            letter-spacing: 0.6px;
+            margin: 0 0 8px 8px;
+        }
+
+        .card {
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 6px 16px;
+            box-shadow: var(--shadow);
+            margin-bottom: 20px;
+            border: 1px solid var(--border);
+        }
+
+        .setting-group {
+            padding: 12px 0;
+            border-bottom: 1px solid var(--border);
+        }
+        .setting-group:last-child { border-bottom: none; }
+        
+        .label-row { 
+            display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; 
+        }
+        
+        .toggle-row { 
+            display: flex; justify-content: space-between; align-items: center; 
+            padding: 12px 0; border-bottom: 1px solid var(--border);
+        }
+        .toggle-row:last-child { border-bottom: none; }
+
+        label { font-size: 14px; font-weight: 600; color: var(--text-main); margin: 0; }
+        .desc { font-size: 11.5px; color: var(--text-muted); display: block; margin-top: 3px; line-height: 1.3; font-weight: 400;}
+        .val { font-size: 12px; color: var(--accent); font-variant-numeric: tabular-nums; font-weight: 600; background: rgba(0, 122, 255, 0.1); padding: 2px 6px; border-radius: 6px;}
+
+        input[type="range"] {
+            -webkit-appearance: none; width: 100%; height: 5px;
+            background: #e5e5ea; border-radius: 4px; outline: none; margin-top: 4px;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%;
+            background: #ffffff; border: 1.5px solid var(--accent); box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15); cursor: pointer;
+            transition: transform 0.1s;
+        }
+        input[type="range"]::-webkit-slider-thumb:active { transform: scale(1.1); }
+
+        select {
+            appearance: none;
+            background: #f4f5f7 url('data:image/svg+xml;utf8,<svg fill="%2386868b" height="20" viewBox="0 0 24 24" width="20" xmlns="http://www.w3.org/2000/svg"><path d="M7 10l5 5 5-5z"/></svg>') no-repeat right 6px center;
+            border: 1px solid transparent; border-radius: 8px;
+            padding: 6px 28px 6px 10px; font-size: 13px; font-weight: 500; color: var(--text-main); 
+            outline: none; width: 140px; cursor: pointer; transition: background 0.2s, border 0.2s;
+        }
+        select:hover { background: #ececf0; }
+        select:focus { border: 1px solid var(--accent); background: #fff;}
+
+        .switch { position: relative; display: inline-block; width: 40px; height: 22px; flex-shrink: 0; margin-left: 10px;}
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #e5e5ea; transition: .3s; border-radius: 22px; }
+        .slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 2px; bottom: 2px; background-color: white; transition: .3s cubic-bezier(0.4, 0.0, 0.2, 1); border-radius: 50%; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15); }
+        input:checked + .slider { background-color: #34c759; }
+        input:checked + .slider:before { transform: translateX(18px); }
+
+        .reset-btn {
+            width: 100%; padding: 12px; margin-top: 8px; background: rgba(0, 122, 255, 0.1);
+            border: none; border-radius: 12px; font-size: 14px; font-weight: 600;
+            color: var(--accent); cursor: pointer; transition: all 0.2s;
+        }
+        .reset-btn:hover { background: rgba(0, 122, 255, 0.15); color: var(--accent-hover); }
+        .reset-btn:active { transform: scale(0.98); }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <div class="header-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="4" ry="4"></rect>
+                <line x1="3" y1="9" x2="21" y2="9"></line>
+            </svg>
+        </div>
+        <h2>GoPeak</h2>
+    </div>
+
+    <div class="section-title">Behavior</div>
+    <div class="card">
+        <div class="setting-group">
+            <div class="label-row">
+                <label>Trigger Key</label>
+                <select id="modifierKey">
+                    <option value="Shift">Shift + Hover</option>
+                    <option value="Alt">Alt/Opt + Hover</option>
+                    <option value="Ctrl">Ctrl + Hover</option>
+                </select>
+            </div>
+        </div>
+        <div class="setting-group">
+            <div class="label-row">
+                <label>Sidebar Mode</label>
+                <select id="sidebarMode">
+                    <option value="split">Split Screen</option>
+                    <option value="overlay">Overlay</option>
+                </select>
+            </div>
+        </div>
+        <div class="setting-group">
+            <div class="label-row">
+                <label>Bubble Trigger</label>
+                <select id="bubbleTrigger">
+                    <option value="dblclick_out">Dbl-Click Outside</option>
+                    <option value="dblclick_head">Dbl-Click Header</option>
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <div class="section-title">Window Size</div>
+    <div class="card">
+        <div class="setting-group">
+            <div class="label-row">
+                <label>Default Width</label>
+                <span class="val" id="widthVal">768px</span>
+            </div>
+            <input type="range" id="width" min="400" max="1200" step="10">
+        </div>
+        <div class="setting-group">
+            <div class="label-row">
+                <label>Default Height</label>
+                <span class="val" id="heightVal">529px</span>
+            </div>
+            <input type="range" id="height" min="300" max="900" step="10">
+        </div>
+    </div>
+
+    <div class="section-title">Features</div>
+    <div class="card">
+        <div class="toggle-row">
+            <div><label>Enable Bubbles</label><span class="desc">Minimize windows to bubbles</span></div>
+            <label class="switch"><input type="checkbox" id="hp_allow_bubble"><span class="slider"></span></label>
+        </div>
+        <div class="toggle-row">
+            <div><label>Show Scrollbars</label><span class="desc">Display scrollbars inside window</span></div>
+            <label class="switch"><input type="checkbox" id="hp_scroll"><span class="slider"></span></label>
+        </div>
+        <div class="toggle-row">
+            <div><label>Auto-hide Header</label><span class="desc">Retract top bar when scrolling</span></div>
+            <label class="switch"><input type="checkbox" id="hp_autohide"><span class="slider"></span></label>
+        </div>
+        <div class="toggle-row">
+            <div><label>Dynamic Theme</label><span class="desc">Match header to site colors</span></div>
+            <label class="switch"><input type="checkbox" id="hp_theme"><span class="slider"></span></label>
+        </div>
+        <div class="toggle-row">
+            <div><label>Ghost Mode</label><span class="desc">Pinned windows fade away</span></div>
+            <label class="switch"><input type="checkbox" id="hp_ghost"><span class="slider"></span></label>
+        </div>
+        <div class="toggle-row">
+            <div><label>Multi-Peak</label><span class="desc">Allow multiple open windows</span></div>
+            <label class="switch"><input type="checkbox" id="hp_multipeak"><span class="slider"></span></label>
+        </div>
+        <div class="toggle-row">
+            <div><label>Search Selection</label><span class="desc">Highlight text to fast search</span></div>
+            <label class="switch"><input type="checkbox" id="hp_search"><span class="slider"></span></label>
+        </div>
+    </div>
+
+    <button id="resetBtn" class="reset-btn">Reset to Default Settings</button>
+    <script src="popup.js"></script>
+</body>
+</html>
