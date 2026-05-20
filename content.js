@@ -150,8 +150,6 @@ else if (window === window.top) {
     class GoPeakWindow {
       constructor() {
         this.id = 'gopeak-frame-' + Date.now() + Math.floor(Math.random() * 1000);
-
-        // SECURITY FIX: Package the Host origin to pass it into the iframe securely
         const hostOrigin = window.location.origin === 'null' ? '*' : window.location.origin;
         this.frameName = this.id + '|' + hostOrigin;
 
@@ -182,16 +180,10 @@ else if (window === window.top) {
               border-radius: 12px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5), 0 0 0 1px rgba(0,0,0,0.1);
               font-family: system-ui, -apple-system, sans-serif; display: flex; flex-direction: column;
               overflow: hidden; opacity: 0; 
-              
-              /* FIX: Re-merged the transform so it properly shrinks to scale 0.95 and translates in 3D */
               transform: translate3d(0, 15px, 0) scale(0.95);
-              
-              /* FIX: Extended the transition duration slightly to 0.25s to guarantee smooth scaling down */
               transition: opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1), transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), border-radius 0.3s; 
-              
               pointer-events: none; overscroll-behavior: none; resize: both;
               min-width: 320px; min-height: 250px; 
-              
               will-change: transform, opacity, width, height, left, top;
               contain: strict; 
               backface-visibility: hidden;
@@ -216,7 +208,7 @@ else if (window === window.top) {
 
             #mini-browser.minimized {
               width: 56px !important; height: 56px !important; min-width: 56px !important; min-height: 56px !important;
-              border-radius: 28px !important; resize: none !important; cursor: pointer;
+              border-radius: 28px !important; resize: none !important; cursor: pointer; padding: 0 !important;
               box-shadow: 0 10px 20px rgba(0,0,0,0.3);
             }
             #mini-browser.minimized #header, #mini-browser.minimized #iframe-container { display: none !important; }
@@ -295,7 +287,7 @@ else if (window === window.top) {
 
         this.setupListeners();
       }
-      // SECURITY FIX: Dynamic TargetOrigin Calculation
+
       securePostToIframe(payload) {
         if (!this.iframe || !this.iframe.contentWindow) return;
         let targetOrigin = '*';
@@ -311,7 +303,7 @@ else if (window === window.top) {
 
         const freshIframe = document.createElement('iframe');
         freshIframe.id = 'content-frame';
-        freshIframe.name = this.frameName; // Injects parent origin lock
+        freshIframe.name = this.frameName; 
         freshIframe.sandbox = "allow-scripts allow-same-origin allow-forms allow-popups";
         freshIframe.src = newUrl;
 
@@ -480,30 +472,28 @@ else if (window === window.top) {
         }
       }
 
-      // FIX: The closing transition is totally repaired. 
-      // It smoothly shrinks and fades out over 250ms precisely where it sits, 
-      // and gently clears the host page padding!
       close() {
         this.isClosing = true;
         this.isVisible = false;
-        this.browser.classList.remove('dragging');
+        this.browser.classList.remove('dragging'); 
 
-        // If it's a sidebar, we carefully clear the main document's padding
-        // without calling unsnap(), ensuring it doesn't glitch dimensions.
         if (this.isSnapped && settings.hp_sidebar_mode === 'split') {
           document.documentElement.style.transition = 'padding 0.25s cubic-bezier(0.4, 0, 0.2, 1)';
           document.documentElement.style.paddingRight = '';
           document.documentElement.style.paddingLeft = '';
         }
 
-        // Trigger CSS Fade Out/Shrink transition
-        this.browser.classList.remove('visible');
-
-        // Wait 250ms for CSS transition to perfectly finish before memory wipe
+        this.browser.classList.remove('visible'); 
+        
         setTimeout(() => {
           if (this.iframe) this.iframe.src = 'about:blank';
           if (this.host && this.host.parentNode) this.host.remove();
           activeWindows = activeWindows.filter(w => w !== this);
+          
+          // SECURITY FIX: If no more previews are open, dynamically raise the shields again!
+          if (activeWindows.length === 0) {
+              chrome.runtime.sendMessage({ action: "disable_bypass" });
+          }
         }, 250);
       }
 
@@ -517,7 +507,6 @@ else if (window === window.top) {
           else this.browser.classList.remove('ghost');
         });
 
-        // Use the new strictly targeted sender
         this.shadow.querySelector('.back').addEventListener('click', () => this.securePostToIframe({ gopeak: 'goBack' }));
         this.shadow.querySelector('.forward').addEventListener('click', () => this.securePostToIframe({ gopeak: 'goForward' }));
 
@@ -646,7 +635,6 @@ else if (window === window.top) {
       const targetWin = activeWindows.find(w => w.id === event.data.id);
       if (!targetWin) return;
 
-      // SECURITY FIX: Strict source validation to prevent spoofing from host page scripts
       if (event.source !== targetWin.iframe.contentWindow) return;
 
       if (event.data.gopeak === 'hideHeader' && settings.hp_autohide) targetWin.browser.classList.add('header-hidden');
@@ -676,22 +664,28 @@ else if (window === window.top) {
       const link = e.target.closest("a");
       if (link && link.href && checkModifier(e)) {
         activeHoverLink = link.href;
-        prefetchUrl(link.href);
-
-        clearTimeout(intentTimer);
-        intentTimer = setTimeout(() => {
-          let targetWin = activeWindows.find(w => !w.isPinned && !w.isClosing);
-          if (!targetWin) {
-            if (!settings.hp_multipeak && activeWindows.filter(w => !w.isClosing).length > 0) {
-              targetWin = activeWindows.find(w => !w.isClosing);
-            } else {
-              targetWin = new GoPeakWindow();
-              activeWindows.push(targetWin);
-            }
-          }
-          targetWin.preload(link.href, e.clientX, e.clientY);
-          if (activeHoverLink === link.href) targetWin.show();
-        }, 300);
+        
+        // SECURITY FIX: Tell background.js to dynamically lower shields for this specific tab!
+        chrome.runtime.sendMessage({ action: "enable_bypass" }, () => {
+            if (activeHoverLink !== link.href) return; // Abort if user moved mouse too fast
+            
+            prefetchUrl(link.href); 
+            
+            clearTimeout(intentTimer);
+            intentTimer = setTimeout(() => {
+              let targetWin = activeWindows.find(w => !w.isPinned && !w.isClosing);
+              if (!targetWin) {
+                if (!settings.hp_multipeak && activeWindows.filter(w => !w.isClosing).length > 0) {
+                    targetWin = activeWindows.find(w => !w.isClosing);
+                } else { 
+                    targetWin = new GoPeakWindow(); 
+                    activeWindows.push(targetWin); 
+                }
+              }
+              targetWin.preload(link.href, e.clientX, e.clientY);
+              if (activeHoverLink === link.href) targetWin.show(); 
+            }, 300);
+        });
       }
     });
 
@@ -709,18 +703,22 @@ else if (window === window.top) {
       const selection = window.getSelection().toString().trim();
       if (selection) {
         const searchUrl = `https://www.google.com/search?igu=1&q=${encodeURIComponent(selection)}`;
-        prefetchUrl(searchUrl);
-        let targetWin = activeWindows.find(w => !w.isPinned && !w.isClosing);
-        if (!targetWin) {
-          if (!settings.hp_multipeak && activeWindows.filter(w => !w.isClosing).length > 0) {
-            targetWin = activeWindows.find(w => !w.isClosing);
-          } else {
-            targetWin = new GoPeakWindow();
-            activeWindows.push(targetWin);
-          }
-        }
-        targetWin.preload(searchUrl, e.clientX, e.clientY);
-        targetWin.show();
+        
+        // SECURITY FIX: Session rule injected right before Search selection load
+        chrome.runtime.sendMessage({ action: "enable_bypass" }, () => {
+            prefetchUrl(searchUrl);
+            let targetWin = activeWindows.find(w => !w.isPinned && !w.isClosing);
+            if (!targetWin) {
+              if (!settings.hp_multipeak && activeWindows.filter(w => !w.isClosing).length > 0) {
+                targetWin = activeWindows.find(w => !w.isClosing);
+              } else {
+                targetWin = new GoPeakWindow();
+                activeWindows.push(targetWin);
+              }
+            }
+            targetWin.preload(searchUrl, e.clientX, e.clientY);
+            targetWin.show();
+        });
       }
     });
 
