@@ -1,5 +1,3 @@
-
-
 let updateTimeout = null;
 
 // Dynamically generate the context menu based on your live tabs
@@ -50,18 +48,20 @@ function debouncedUpdateContextMenu() {
 function clearSessionRules(tabId = null) {
     if (tabId !== null) {
         chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: [tabId] });
+        activeBypassTabs.delete(tabId); // Keep cache perfectly in sync
     } else {
         // Clear all session rules on startup/install to prevent leakage
         chrome.declarativeNetRequest.getSessionRules((rules) => {
             const ruleIds = rules.map(rule => rule.id);
             if (ruleIds.length > 0) chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: ruleIds });
         });
+        activeBypassTabs.clear(); // Wipe cache on global reset
     }
 }
 
 chrome.tabs.onCreated.addListener(debouncedUpdateContextMenu);
 chrome.tabs.onRemoved.addListener((tabId) => {
-    clearSessionRules(tabId); // Scrub the rule when the tab is closed
+    clearSessionRules(tabId); // Scrub the rule and cache when the tab is closed
     debouncedUpdateContextMenu();
 });
 chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
@@ -95,8 +95,10 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
     }
 });
 
-// Primary Message Bus
-let activeBypassTabId = null; // Cache the current tab
+// =========================================================
+// SCALABLE CACHE: Tracks multiple tabs independently
+// =========================================================
+const activeBypassTabs = new Set(); 
 
 // Primary Message Bus
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
@@ -104,13 +106,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === "enable_bypass") {
         const tabId = sender.tab.id;
         
-        // SPEED HACK: If this tab already has the bypass active, instantly resolve!
-        if (activeBypassTabId === tabId) {
+        // SPEED HACK: If THIS specific tab already has the bypass active, instantly resolve!
+        if (activeBypassTabs.has(tabId)) {
             if (sendResponse) sendResponse({success: true});
             return true;
         }
         
-        activeBypassTabId = tabId; // Update cache
+        activeBypassTabs.add(tabId); // Lock in the cache for this tab
         
         chrome.declarativeNetRequest.updateSessionRules({
             removeRuleIds: [tabId], 
@@ -136,8 +138,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
     if (request.action === "disable_bypass") {
         const tabId = sender.tab.id;
-        if (activeBypassTabId === tabId) activeBypassTabId = null; // Clear cache
-        clearSessionRules(tabId);
+        clearSessionRules(tabId); // Handles both the DNR engine and the Set() cache
         if (sendResponse) sendResponse({success: true});
         return true;
     }
