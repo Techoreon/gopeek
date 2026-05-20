@@ -94,9 +94,21 @@ if (window !== window.top && window.name.startsWith('gopeak-frame')) {
     });
   }
 
+  let observerThrottle = null;
+
   const observer = new MutationObserver((mutations) => {
+    let needsUpdate = false;
     for (let m of mutations) {
-      if (m.target.nodeName === 'TITLE' || m.target.nodeName === 'META') reportState();
+      if (m.target.nodeName === 'TITLE' || m.target.nodeName === 'META') {
+          needsUpdate = true;
+          break; // Stop looping once we find what we need
+      }
+    }
+    
+    // Batch the postMessage calls
+    if (needsUpdate) {
+        clearTimeout(observerThrottle);
+        observerThrottle = setTimeout(reportState, 150);
     }
   });
 
@@ -304,7 +316,6 @@ else if (window === window.top) {
         const freshIframe = document.createElement('iframe');
         freshIframe.id = 'content-frame';
         freshIframe.name = this.frameName; 
-        freshIframe.sandbox = "allow-scripts allow-same-origin allow-forms allow-popups";
         freshIframe.src = newUrl;
 
         this.iframe.replaceWith(freshIframe);
@@ -660,38 +671,48 @@ else if (window === window.top) {
       }
     });
 
+    let preIntentTimer = null; // Add this near your intentTimer definition
+
     document.addEventListener("mouseover", (e) => {
       const link = e.target.closest("a");
       if (link && link.href && checkModifier(e)) {
         activeHoverLink = link.href;
         
-        // SECURITY FIX: Tell background.js to dynamically lower shields for this specific tab!
-        chrome.runtime.sendMessage({ action: "enable_bypass" }, () => {
-            if (activeHoverLink !== link.href) return; // Abort if user moved mouse too fast
+        // Wait 75ms to ensure the user actually stopped on the link
+        clearTimeout(preIntentTimer);
+        preIntentTimer = setTimeout(() => {
+            if (activeHoverLink !== link.href) return; // User kept moving, abort!
             
-            prefetchUrl(link.href); 
-            
-            clearTimeout(intentTimer);
-            intentTimer = setTimeout(() => {
-              let targetWin = activeWindows.find(w => !w.isPinned && !w.isClosing);
-              if (!targetWin) {
-                if (!settings.hp_multipeak && activeWindows.filter(w => !w.isClosing).length > 0) {
-                    targetWin = activeWindows.find(w => !w.isClosing);
-                } else { 
-                    targetWin = new GoPeakWindow(); 
-                    activeWindows.push(targetWin); 
-                }
-              }
-              targetWin.preload(link.href, e.clientX, e.clientY);
-              if (activeHoverLink === link.href) targetWin.show(); 
-            }, 300);
-        });
+            // NOW we wake up the service worker and drop the shields
+            chrome.runtime.sendMessage({ action: "enable_bypass" }, () => {
+                if (activeHoverLink !== link.href) return; 
+                
+                prefetchUrl(link.href); 
+                
+                clearTimeout(intentTimer);
+                // Reduce this from 300 to 225 since we already waited 75ms
+                intentTimer = setTimeout(() => {
+                  let targetWin = activeWindows.find(w => !w.isPinned && !w.isClosing);
+                  if (!targetWin) {
+                    if (!settings.hp_multipeak && activeWindows.filter(w => !w.isClosing).length > 0) {
+                        targetWin = activeWindows.find(w => !w.isClosing);
+                    } else { 
+                        targetWin = new GoPeakWindow(); 
+                        activeWindows.push(targetWin); 
+                    }
+                  }
+                  targetWin.preload(link.href, e.clientX, e.clientY);
+                  if (activeHoverLink === link.href) targetWin.show(); 
+                }, 225); 
+            });
+        }, 75);
       }
     });
 
     document.addEventListener("mouseout", (e) => {
       if (e.target.closest("a")) {
         activeHoverLink = null;
+        clearTimeout(preIntentTimer); // Kill the network request if they leave early
         clearTimeout(intentTimer);
         let targetWin = activeWindows.find(w => !w.isPinned && !w.isVisible && !w.isClosing);
         if (targetWin) targetWin.cancelPreload();

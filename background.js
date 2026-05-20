@@ -96,13 +96,22 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
 });
 
 // Primary Message Bus
+let activeBypassTabId = null; // Cache the current tab
+
+// Primary Message Bus
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     
-    // =========================================================
-    // SECURITY: Dynamic Session Scoped Header Stripping
-    // =========================================================
     if (request.action === "enable_bypass") {
         const tabId = sender.tab.id;
+        
+        // SPEED HACK: If this tab already has the bypass active, instantly resolve!
+        if (activeBypassTabId === tabId) {
+            if (sendResponse) sendResponse({success: true});
+            return true;
+        }
+        
+        activeBypassTabId = tabId; // Update cache
+        
         chrome.declarativeNetRequest.updateSessionRules({
             removeRuleIds: [tabId], 
             addRules: [{
@@ -117,8 +126,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                     ]
                 },
                 condition: {
-                    tabIds: [tabId], // brilliant security: scoped only to the active tab!
-                    resourceTypes: ["sub_frame"] // Removed xmlhttprequest, narrowed to just iframes!
+                    tabIds: [tabId], 
+                    resourceTypes: ["sub_frame"] 
                 }
             }]
         }).then(() => { if (sendResponse) sendResponse({success: true}); });
@@ -126,7 +135,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     }
 
     if (request.action === "disable_bypass") {
-        clearSessionRules(sender.tab.id);
+        const tabId = sender.tab.id;
+        if (activeBypassTabId === tabId) activeBypassTabId = null; // Clear cache
+        clearSessionRules(tabId);
         if (sendResponse) sendResponse({success: true});
         return true;
     }
