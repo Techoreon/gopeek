@@ -293,6 +293,10 @@ else if (window === window.top) {
         this.bubbleImg = this.bubble.querySelector('img');
         this.resizeHandle = this.shadow.querySelector('.resize-handle');
 
+        this.navHistory = [];
+        this.navIndex = -1;
+        this.ignoreNextUrl = false;
+
         this.isDragging = false;
         this.isDraggingMotion = false;
         this.isResizingEdge = false;
@@ -327,6 +331,9 @@ else if (window === window.top) {
 
         const wasVisible = this.isVisible;
         this.url = url;
+        this.navHistory = [url];
+        this.navIndex = 0;
+        this.ignoreNextUrl = false;
         try { this.urlBar.textContent = new URL(url).hostname; } catch { this.urlBar.textContent = url; }
 
         if (!wasVisible) {
@@ -518,8 +525,26 @@ else if (window === window.top) {
           else this.browser.classList.remove('ghost');
         });
 
-        this.shadow.querySelector('.back').addEventListener('click', () => this.securePostToIframe({ gopeak: 'goBack' }));
-        this.shadow.querySelector('.forward').addEventListener('click', () => this.securePostToIframe({ gopeak: 'goForward' }));
+        this.shadow.querySelector('.back').addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (this.navIndex > 0) {
+            this.navIndex--;
+            this.ignoreNextUrl = true;
+            let url = this.navHistory[this.navIndex];
+            if (url.startsWith('http://')) url = url.replace(/^http:\/\//i, 'https://');
+            this.iframe.src = url;
+          }
+        });
+        this.shadow.querySelector('.forward').addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (this.navIndex < this.navHistory.length - 1) {
+            this.navIndex++;
+            this.ignoreNextUrl = true;
+            let url = this.navHistory[this.navIndex];
+            if (url.startsWith('http://')) url = url.replace(/^http:\/\//i, 'https://');
+            this.iframe.src = url;
+          }
+        });
 
         this.bubble.addEventListener('click', () => {
           if (!this.isDraggingMotion) this.toggleMinimize();
@@ -654,6 +679,18 @@ else if (window === window.top) {
         if (event.data.url !== targetWin.url) {
           targetWin.url = event.data.url;
           try { targetWin.urlBar.textContent = new URL(targetWin.url).hostname; } catch { }
+          if (targetWin.navIndex >= 0) {
+            if (targetWin.ignoreNextUrl) {
+              targetWin.ignoreNextUrl = false;
+              targetWin.navHistory[targetWin.navIndex] = event.data.url;
+            } else if (targetWin.navHistory[targetWin.navIndex] !== event.data.url) {
+              if (targetWin.navIndex < targetWin.navHistory.length - 1) {
+                targetWin.navHistory = targetWin.navHistory.slice(0, targetWin.navIndex + 1);
+              }
+              targetWin.navHistory.push(event.data.url);
+              targetWin.navIndex++;
+            }
+          }
         }
         if (settings.hp_theme) {
           targetWin.header.style.setProperty('--header-bg', event.data.color);
